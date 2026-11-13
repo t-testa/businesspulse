@@ -14,7 +14,7 @@ from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from .kpis import KPI_DEFINITIONS
-from .models import Sale, SalesImport
+from .models import Organization, Sale, SalesImport
 
 MAX_CSV_BYTES = 2 * 1024 * 1024
 MAX_ROWS = 5000
@@ -148,6 +148,11 @@ def parse_sales_csv(uploaded_file) -> list[SaleRow]:
 @transaction.atomic
 def save_sales_import(*, organization, user, file_name: str, rows: list[SaleRow]):
     """Reuploads are idempotent, but conflicting transaction IDs are rejected."""
+    # Serialize imports before reading existing sales. Locking Sale rows alone
+    # cannot protect IDs which have not been inserted yet. PostgreSQL holds this
+    # workspace lock until commit/rollback; other workspaces remain independent.
+    # SQLite ignores select_for_update and remains for single-user development.
+    organization = Organization.objects.select_for_update().get(pk=organization.pk)
     if organization.owner_id != user.pk:
         raise CSVValidationError('Only the workspace owner can import sales.')
     existing = {

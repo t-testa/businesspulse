@@ -10,6 +10,8 @@ DEBUG = os.environ.get('DJANGO_DEBUG', '1').lower() in ('1', 'true', 'yes')
 _secret = os.environ.get('DJANGO_SECRET_KEY')
 if not _secret and not DEBUG:
     raise ImproperlyConfigured('DJANGO_SECRET_KEY is mandatory in production')
+if not DEBUG and (len(_secret) < 50 or len(set(_secret)) < 5 or _secret.startswith('replace-this-')):
+    raise ImproperlyConfigured('DJANGO_SECRET_KEY must be a strong, independently generated production secret')
 SECRET_KEY = _secret or 'local-development-only-not-for-production-change-me'
 
 ALLOWED_HOSTS = [s.strip() for s in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if s.strip()]
@@ -19,6 +21,8 @@ if _render_host and _render_host not in ALLOWED_HOSTS:
 CSRF_TRUSTED_ORIGINS = [s.strip() for s in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if s.strip()]
 if _render_host:
     CSRF_TRUSTED_ORIGINS.append('https://' + _render_host)
+if not DEBUG and (not ALLOWED_HOSTS or not (os.environ.get('DJANGO_ALLOWED_HOSTS') or _render_host) or '*' in ALLOWED_HOSTS):
+    raise ImproperlyConfigured('Set explicit production allowed hosts or RENDER_EXTERNAL_HOSTNAME; wildcards are not allowed')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -66,6 +70,9 @@ DATABASES = {
         ssl_require=bool(os.environ.get('DATABASE_URL')) and not DEBUG and os.environ.get('DB_SSL_REQUIRE') == '1',
     )
 }
+if not DEBUG and DATABASES['default'].get('ENGINE') != 'django.db.backends.postgresql':
+    raise ImproperlyConfigured('Production requires a PostgreSQL DATABASE_URL; SQLite is for development only')
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -99,3 +106,15 @@ if not DEBUG:
 # Uploaded CSVs are parsed immediately and NOT persisted to local storage.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 3 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 3 * 1024 * 1024
+
+# Render collects process output. Do not log CSV contents, credentials, or request bodies.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {'standard': {'format': '{asctime} {levelname} {name}: {message}', 'style': '{'}},
+    'handlers': {'console': {'class': 'logging.StreamHandler', 'formatter': 'standard'}},
+    'loggers': {
+        'django': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+        'tracker': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+    },
+}
