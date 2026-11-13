@@ -3,15 +3,50 @@ on:
   push:
     branches: [main]
   pull_request:
+
+permissions:
+  contents: read
+
 jobs:
   test:
+    name: Tests (${{ matrix.database }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, postgres]
+    services:
+      postgres:
+        image: ${{ matrix.database == 'postgres' && 'postgres:17-alpine' || '' }}
+        env:
+          POSTGRES_DB: businesspulse
+          POSTGRES_USER: businesspulse
+          # Disposable CI service credentials, never a staging secret.
+          POSTGRES_PASSWORD: local-synthetic-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U businesspulse -d businesspulse"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      DJANGO_DEBUG: '1'
+      DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql://businesspulse:local-synthetic-only@127.0.0.1:5432/businesspulse' || 'sqlite:///ci.sqlite3' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
+          cache: pip
       - run: python -m pip install -r requirements.txt
+      - run: python -m pip check
       - run: python manage.py check
       - run: python manage.py makemigrations --check --dry-run
-      - run: python manage.py test
+      - run: python manage.py migrate --noinput
+      - run: python manage.py migrate --check
+      - run: python manage.py test --noinput
+      - name: Verify Render build and Gunicorn locally
+        if: matrix.database == 'postgres'
+        run: bash scripts/verify_staging.sh

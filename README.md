@@ -2,7 +2,7 @@
 
 **Upload a sales CSV. Automatically see business KPIs.**
 
-A runnable Django 5.2 starter for a production-oriented SMB analytics application. This is a **synthetic-data beta**, not a certified data platform for real customer information.
+A Django 5.2 application in the public [t-testa/businesspulse repository](https://github.com/t-testa/businesspulse). This is a **synthetic-data beta**, not a certified data platform for real customer information. Staging preparation does not mean a service has been deployed.
 
 ## What is already coded
 
@@ -19,8 +19,8 @@ A runnable Django 5.2 starter for a production-oriented SMB analytics applicatio
 
 ## Quick start — Windows PowerShell
 
-1. Download the starter archive and extract it to a project folder you control, for example `C:\Users\<you>\Projects\businesspulse`.
-2. Open VS Code or a PowerShell terminal inside the extracted `businesspulse_mvp` directory (the directory containing `manage.py`).
+1. Clone the existing public repository: `git clone https://github.com/t-testa/businesspulse.git`.
+2. Run `cd businesspulse` and open a terminal in that directory (the directory containing `manage.py`).
 3. Create and activate a Python virtual environment:
 
 ```powershell
@@ -50,20 +50,29 @@ python manage.py runserver
 
 If you already have Codex connected in VS Code, open this folder and give it the contents of [CODEX_START_HERE.md](CODEX_START_HERE.md). From Codex CLI, open a terminal in the project directory and run `codex`; sign in to your account if needed. Codex should **verify and repair** the starter before adding new functionality. [Codex guidance](https://learn.chatgpt.com/docs/codex/cli).
 
-### Git and GitHub
+### Local PostgreSQL with Docker Desktop
 
-Create your own **private** GitHub repository (suggested repo name: `businesspulse`). Then, from inside the project folder:
+Start Docker Desktop using its Linux engine, then run these commands with the virtual environment activated:
 
 ```powershell
-git init
-git add .
-git commit -m "feat: initial BusinessPulse sales KPI vertical slice"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/businesspulse.git
-git push -u origin main
+docker compose up -d --wait postgres
+$env:DATABASE_URL = 'postgresql://businesspulse:local-synthetic-only@127.0.0.1:55432/businesspulse'
+python manage.py migrate --noinput
+python manage.py check
+python manage.py makemigrations --check --dry-run
+python manage.py test --noinput
+python manage.py runserver
 ```
 
-This assumes you already created the empty repository on GitHub and authenticated Git (e.g. via your credential manager). Do **not** publish production secrets, real customer data, or `db.sqlite3`.
+The Compose password is public **local-only synthetic-test configuration**, never a staging credential. PostgreSQL 17 listens only on loopback port 55432. Its named Docker volume preserves local data across container restarts. The local database role can create Django's disposable test database; a staging application role should not need that permission.
+
+To return to SQLite, run `Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue`. To stop PostgreSQL without deleting its data, run `docker compose stop postgres`. `docker compose down` also preserves the volume; adding `--volumes` destroys it, so do that only when deliberately discarding synthetic local data. Django does not automatically read `.env` files.
+
+SQLite remains supported for single-user development. PostgreSQL is required for staging and for the three concurrency tests: SQLite does not implement the row locks used to serialize uploads. CI runs both database configurations with Python 3.12, and the PostgreSQL job also verifies the Linux build/start commands. `.python-version` selects Python 3.12 for Render as well.
+
+### Git and GitHub
+
+Work through branches and pull requests against `main` in [t-testa/businesspulse](https://github.com/t-testa/businesspulse). Review the diff and CI before merging; do not recreate the repository or push directly to `main`. Do **not** publish production secrets, real customer data, databases, or backups. See [the repository exposure audit](docs/SECURITY_AUDIT.md).
 
 ## How the application works
 
@@ -97,6 +106,7 @@ Select **All time** to verify the entire sample. Some dates will fall outside a 
 - [First Codex task](CODEX_START_HERE.md) — verify, repair, test, explain, and get a working localhost version.
 - [Product requirements & KPI grain](docs/PRODUCT.md) — what counts as correct.
 - [Deployment runbook](docs/DEPLOYMENT.md) — go live with synthetic data first.
+- [Staging readiness results](docs/STAGING_READINESS.md) — PostgreSQL, concurrency, CI, and build verification.
 - [Engineering learning log](docs/LEARNING_LOG.md) — learn rather than blindly delegate.
 - [Agent guardrails](AGENTS.md) — help Codex respect correctness and scope.
 
