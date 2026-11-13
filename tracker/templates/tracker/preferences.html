@@ -1,0 +1,16 @@
+{% extends 'tracker/base.html' %}
+{% block title %}KPIs | BusinessPulse{% endblock %}
+{% block content %}
+<div class="page-header"><div><p class="eyebrow">DASHBOARD CONFIGURATION</p><h1>Choose your KPIs</h1><p class="muted">Enable the standard indicators that matter to your business.</p></div></div>
+<section class="panel narrow">
+  <form action="{% url 'preferences' %}" method="post" class="stacked-form">
+    {% csrf_token %}
+    {% for item in choices %}
+    <label class="check-row"><input type="checkbox" name="kpis" value="{{ item.slug }}" {% if item.selected %}checked{% endif %}>
+      <span><strong>{{ item.label }}</strong><span class="small muted check-help">{{ item.description }}</span></span></label>
+    {% endfor %}
+    <p class="small muted">These formulas are predefined. Custom formulas and custom data mappings are planned for a later release.</p>
+    <button type="submit" class="button primary">Save preferences</button>
+  </form>
+</section>
+{% endblock %}

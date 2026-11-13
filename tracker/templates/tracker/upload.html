@@ -1,0 +1,29 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Upload sales | BusinessPulse{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><p class="eyebrow">STEP 1 · IMPORT</p><h1>Upload your sales</h1><p class="muted">Your data will be validated before any records are saved.</p></div>
+</div>
+<div class="two-column">
+  <section class="panel">
+    <h2>CSV import</h2>
+    <p class="muted">Current workspace: <strong>{{ organization.name }}</strong> ({{ organization.currency }})</p>
+    <form action="{% url 'upload_sales' %}" method="post" enctype="multipart/form-data" class="stacked-form">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+      <label for="id_file">Choose a .csv file</label>
+      {{ form.file }}
+      {% if form.file.errors %}<div class="form-errors">{{ form.file.errors }}</div>{% endif %}
+      <p class="small muted">UTF-8 encoded CSV · Maximum 2 MB · Up to 5,000 rows · Completed transactions only</p>
+      <button class="button primary" type="submit">Validate and import</button>
+    </form>
+  </section>
+  <section class="panel">
+    <h2>Required columns</h2>
+    <div class="code-example"><code>transaction_id,date,customer_id,revenue,cost<br>SALE-001,2026-11-01,C-001,1250.00,720.00<br>SALE-002,2026-11-03,C-002,800.00,450.00</code></div>
+    <p class="small">One row = one unique completed sale. Revenue and cost must be nonnegative amounts in <strong>{{ organization.currency }}</strong>. No tax, refund, cancellation or line-item handling yet.</p>
+    <p class="small">Some alternative headers are recognized automatically (for example, <code>order_id</code> and <code>cogs</code>). The sample file is included in the project archive.</p>
+    <p class="small muted">The original uploaded CSV is not retained; only validated transaction fields are stored. Do not upload sensitive production information during this beta.</p>
+  </section>
+</div>
+{% endblock %}

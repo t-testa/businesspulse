@@ -1,0 +1,59 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Dashboard | BusinessPulse{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">SALES INTELLIGENCE · {{ organization.currency }}</p>
+    <h1>{{ organization.name }}</h1>
+    <p class="muted">Understand your completed sales, at transaction grain.</p>
+  </div>
+  <a class="button primary" href="{% url 'upload_sales' %}">+ Upload sales</a>
+</div>
+{% if not report.has_data %}
+<section class="panel empty-state">
+  <span class="empty-icon">▥</span>
+  <h2>Start with your first CSV</h2>
+  <p>Upload a sales transaction file to automatically calculate revenue, margin, orders and customer metrics.</p>
+  <a class="button primary" href="{% url 'upload_sales' %}">Upload sales data</a>
+  <p class="small muted">Try the included <code>sample_data/sales_example.csv</code> with fictional transactions.</p>
+</section>
+{% else %}
+<form class="filter-bar" method="get" action="{% url 'dashboard' %}">
+  <label for="period">Reporting period</label>
+  <select id="period" name="period" onchange="this.form.submit()">
+    {% for value, label in report.period_options.items %}
+    <option value="{{ value }}" {% if report.period == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button class="button secondary" type="submit">Apply</button>
+  <span class="muted small">{{ report.transaction_count }} completed transactions in period</span>
+</form>
+<div class="kpi-grid">
+  {% for card in report.cards %}
+  <article class="kpi-card">
+    <div class="kpi-label">{{ card.label }}</div>
+    <div class="kpi-value">{{ card.value }}</div>
+    <p class="kpi-description">{{ card.description }}</p>
+  </article>
+  {% endfor %}
+</div>
+<section class="panel chart-panel">
+  <div class="panel-header"><div><h2>Revenue by month</h2><p class="muted small">{{ report.period_name }} · Most recent 12 months with transactions</p></div><a href="{% url 'preferences' %}" class="link">Customize KPI cards</a></div>
+  {% for item in report.chart_rows %}
+  <div class="chart-row">
+    <span class="chart-label">{{ item.label }}</span>
+    <div class="chart-track"><div class="chart-bar" style="width:{{ item.width }}%"></div></div>
+    <span class="chart-amount">{{ item.revenue }}</span>
+  </div>
+  {% empty %}<p>No transactions found for this period.</p>{% endfor %}
+</section>
+<section class="panel">
+  <div class="panel-header"><h2>Recent uploads</h2><a class="link" href="{% url 'export_sales' %}">Export transaction CSV</a></div>
+  <div class="table-scroll"><table><thead><tr><th>Filename</th><th>Imported</th><th>New sales</th><th>Skipped duplicates</th></tr></thead><tbody>
+    {% for entry in imports %}
+    <tr><td>{{ entry.filename }}</td><td>{{ entry.created_at|date:'Y-m-d H:i' }}</td><td>{{ entry.inserted_count }}</td><td>{{ entry.duplicate_count }}</td></tr>
+    {% empty %}<tr><td colspan="4">No imports yet.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endif %}
+{% endblock %}

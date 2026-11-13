@@ -1,0 +1,16 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Sign in | BusinessPulse{% endblock %}
+{% block content %}
+<div class="auth-wrapper"><div class="panel auth-card">
+  <p class="eyebrow">WELCOME BACK</p><h1>Sign in</h1>
+  {% if form.errors %}<div class="form-errors">Username or password was incorrect.</div>{% endif %}
+  <form method="post" class="stacked-form">
+    {% csrf_token %}
+    <div class="field"><label for="id_username">Username</label>{{ form.username }}</div>
+    <div class="field"><label for="id_password">Password</label>{{ form.password }}</div>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button type="submit" class="button primary">Sign in</button>
+  </form>
+  <p class="small muted">New to BusinessPulse? <a href="{% url 'signup' %}">Create an account</a>.</p>
+</div></div>
+{% endblock %}
