@@ -60,13 +60,9 @@ def _columns(headers):
         hits = [norm_to_original[_norm(alias)] for alias in aliases if _norm(alias) in norm_to_original]
         if not hits:
             raise CSVValidationError(f'Missing required column: {canonical}. Use the sample CSV or a supported header alias.')
-        # Prefer canonical names; if alternative aliases coexist, require manual cleanup
+        # Never silently choose between two possible sources for a required field.
         if len(hits) > 1:
-            canonical_key = _norm(canonical)
-            if canonical_key in norm_to_original:
-                mapped[canonical] = norm_to_original[canonical_key]
-            else:
-                raise CSVValidationError(f'Ambiguous columns for {canonical}: {", ".join(hits)}.')
+            raise CSVValidationError(f'Ambiguous columns for {canonical}: {", ".join(hits)}.')
         else:
             mapped[canonical] = hits[0]
     if len(set(mapped.values())) != len(mapped):
@@ -152,6 +148,8 @@ def parse_sales_csv(uploaded_file) -> list[SaleRow]:
 @transaction.atomic
 def save_sales_import(*, organization, user, file_name: str, rows: list[SaleRow]):
     """Reuploads are idempotent, but conflicting transaction IDs are rejected."""
+    if organization.owner_id != user.pk:
+        raise CSVValidationError('Only the workspace owner can import sales.')
     existing = {
         row.transaction_id: row for row in
         Sale.objects.filter(organization=organization, transaction_id__in=[item.transaction_id for item in rows])
