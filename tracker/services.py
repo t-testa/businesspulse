@@ -18,6 +18,8 @@ from .models import Organization, Sale, SalesImport
 
 MAX_CSV_BYTES = 2 * 1024 * 1024
 MAX_ROWS = 5000
+MAX_COLUMNS = 100
+MAX_HEADER_LENGTH = 200
 
 ALIASES = {
     'transaction_id': ('transaction_id', 'order_id', 'sale_id', 'invoice_id', 'id'),
@@ -45,15 +47,28 @@ def _norm(header: str) -> str:
     return re.sub(r'[^a-z0-9]', '', header.strip().casefold())
 
 
-def _columns(headers):
+def _columns(headers, mapping=None):
+    if len(headers) > MAX_COLUMNS:
+        raise CSVValidationError(f'CSV has too many columns (maximum {MAX_COLUMNS}).')
     norm_to_original = {}
     for header in headers:
         if header is None or not header.strip():
             raise CSVValidationError('CSV contains an empty column header.')
-        normalized = _norm(header)
+        if len(header) > MAX_HEADER_LENGTH:
+            raise CSVValidationError(f'CSV column headers must be at most {MAX_HEADER_LENGTH} characters.')
+        normalized = _norm(header) or header.strip().casefold()
         if normalized in norm_to_original:
             raise CSVValidationError(f'Duplicate or equivalent CSV headers: {header!r}.')
         norm_to_original[normalized] = header
+
+    if mapping is not None:
+        if not isinstance(mapping, dict) or set(mapping) != set(ALIASES):
+            raise CSVValidationError('Map exactly transaction_id, date, customer_id, revenue and cost.')
+        if any(not isinstance(value, str) or value not in headers for value in mapping.values()):
+            raise CSVValidationError('Every mapped column must exist in this CSV. Review the selected mapping.')
+        if len(set(mapping.values())) != len(ALIASES):
+            raise CSVValidationError('Each required field must use a different source column.')
+        return dict(mapping)
 
     mapped = {}
     for canonical, aliases in ALIASES.items():
@@ -86,7 +101,11 @@ def _amount(raw: str, row_number: int, label: str) -> Decimal:
     return amount.quantize(Decimal('0.01'))
 
 
-def parse_sales_csv(uploaded_file) -> list[SaleRow]:
+def parse_sales_csv(uploaded_file, mapping=None) -> list[SaleRow]:
+    return parse_sales_upload(uploaded_file, mapping)[0]
+
+
+def parse_sales_upload(uploaded_file, mapping=None) -> tuple[list[SaleRow], dict[str, str]]:
     """Parse the complete input before any database write; reject invalid imports atomically."""
     if uploaded_file.size > MAX_CSV_BYTES:
         raise CSVValidationError('File too large (maximum 2 MB).')
@@ -103,7 +122,7 @@ def parse_sales_csv(uploaded_file) -> list[SaleRow]:
         reader = csv.DictReader(io.StringIO(text, newline=''), strict=True)
         if not reader.fieldnames:
             raise CSVValidationError('CSV is empty or missing a header row.')
-        columns = _columns(reader.fieldnames)
+        columns = _columns(reader.fieldnames, mapping)
         sales = []
         seen = set()
         for n, record in enumerate(reader, start=2):
@@ -142,7 +161,7 @@ def parse_sales_csv(uploaded_file) -> list[SaleRow]:
         raise CSVValidationError('Malformed CSV: ' + str(exc)) from exc
     if not sales:
         raise CSVValidationError('No data rows found in CSV.')
-    return sales
+    return sales, columns
 
 
 @transaction.atomic

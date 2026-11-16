@@ -1,4 +1,4 @@
-# BusinessPulse — product definition, v0.1
+# BusinessPulse — product definition, v0.2
 
 ## Who is it for?
 
@@ -11,8 +11,8 @@ SMB owners and operators who want to see simple business KPIs from CSV exports w
 ## User journey
 
 1. Sign up with username, email, business name and single currency.
-2. Download/open the example file; export or prepare a matching UTF-8 CSV.
-3. Upload CSV; all rows are validated before DB persistence.
+2. Select a UTF-8 CSV, preview the first 10 rows locally, and review/correct suggested column mappings or choose a saved workspace mapping.
+3. Submit the CSV and mapping once; the server validates the mapping and all rows before DB persistence. Optionally save the mapping after successful import.
 4. See metrics and monthly revenue trend; filter all time / 30 days / 90 days / YTD.
 5. Show/hide predefined KPI cards.
 6. Export stored sale rows if needed.
@@ -34,7 +34,14 @@ All filters are based on **sale date**. No comparison metrics or growth rates ar
 
 ## CSV contract
 
-Required: transaction_id, date (YYYY-MM-DD), customer_id, revenue, cost. Only UTF-8 comma-separated input. Common alternate header spellings are accepted (see `tracker/services.py`). Up to 2 MB / 5,000 rows. Numeric values must be positive or zero with maximum 2 decimals. Negative refunds are not yet handled. No PII is required: customer_id should be a pseudonymous internal ID.
+Required fields: transaction_id, date (YYYY-MM-DD), customer_id, revenue, cost. Source columns may have different names; each field must map to one distinct existing source column. Common alternate names are suggested (see `tracker/services.py`); ambiguous suggestions require a choice. Only UTF-8 comma-separated input, up to 2 MB / 5,000 rows / 100 columns, with headers at most 200 characters. Empty or duplicate/equivalent headers are rejected. Numeric values must be positive or zero with maximum 2 decimals. Negative refunds are not yet handled. No PII is required: customer_id should be a pseudonymous internal ID.
+
+Saved mappings contain an organization, a name, five source-header references, and
+an update timestamp, never CSV contents. They are reusable by header name rather
+than column position. An existing name is replaced only as part of a successful
+atomic import. Mappings are neither listed nor selectable across organizations.
+All rows, not just the preview, are validated on the server; client-side checks
+are only usability aids.
 
 ## Acceptance criteria for first working vertical slice
 
@@ -48,11 +55,11 @@ Required: transaction_id, date (YYYY-MM-DD), customer_id, revenue, cost. Only UT
 
 ## Out of scope (intentional)
 
-Excel/XLSX, file preview and interactive mapping, per-industry templates, custom formulas, joins across files, permissioned multi-user organizations, automated ERP integrations, refunds, tax, multi-currency conversion, billing, AI insights, email verification, self-serve password resets, and production privacy/legal terms.
+Excel/XLSX, date/number-format conversion, mapping deletion/renaming management, per-industry templates, custom formulas, joins across files, permissioned multi-user organizations, automated ERP integrations, refunds, tax, multi-currency conversion, billing, AI insights, email verification, self-serve password resets, and production privacy/legal terms.
 
 ## Next releases
 
-- **v0.2:** upload preview + mapping UI, Excel support, saved mappings, clear import provenance.
+- **v0.2 (this release):** CSV-only local preview, mapping dropdowns, and saved workspace mappings. Excel support is deferred.
 - **v0.3:** add expenses and invoice/receivables templates, industry KPI packs, richer date filters, import reconciliation.
 - **v0.4:** custom KPI builder with a constrained safe expression language (no arbitrary Python/SQL), roles, alerting, secure sharing.
 - **v1.0:** compliance/privacy workflows, billing, audited multi-tenant isolation, backups/restore drills, real customer onboarding.

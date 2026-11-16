@@ -106,6 +106,7 @@ if not DEBUG:
 # Uploaded CSVs are parsed immediately and NOT persisted to local storage.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 3 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 3 * 1024 * 1024
+FILE_UPLOAD_HANDLERS = ['tracker.upload_handlers.BoundedMemoryUploadHandler']
 
 # Render collects process output. Do not log CSV contents, credentials, or request bodies.
 LOGGING = {

@@ -1,5 +1,27 @@
 # Deploying BusinessPulse to Render (synthetic beta first)
 
+## v0.2 release preparation
+
+The owner reports that initial Render deployment, separate-account verification,
+redeploy persistence, and a local restore have succeeded. The original staging
+runbook below remains historical guidance; this feature is not deployed yet.
+
+The column-mapping release adds `tracker.0002_column_mapping`, an additive table
+with an organization/name unique constraint and JSON header references. Apply it
+with `python manage.py migrate --noinput` after approval (the existing build script
+does this). No sale data or KPI formula is changed. Code rollback can leave this
+unused table in place; reversing only this migration deletes saved mappings but
+leaves sales and imports intact. Back up and obtain approval before deleting saved
+mapping metadata. Never reverse `0001_initial` as a feature rollback.
+
+CSV uploads now use one bounded in-memory Django upload handler with no disk
+fallback; oversized or multiple files are rejected. The reverse proxy/platform
+may still buffer requests, so this is not a guarantee about Render's internals.
+Keep transport body limits, memory capacity, log access and retention under review.
+The production build installs only `requirements.txt`; Playwright/Chromium belong
+to development/CI and are not needed on Render. Run the updated two-database CI
+suite before approving this release.
+
 **Preparation only:** creating any Render service/database, enabling public deployment,
 or selecting a paid plan requires the owner's approval. This runbook does not
 authorize deployment. Repository: [t-testa/businesspulse](https://github.com/t-testa/businesspulse).
