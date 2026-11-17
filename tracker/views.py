@@ -2,14 +2,16 @@ import csv
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import transaction
+from django.db.models import CharField, Value
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
-from .forms import SignupForm, UploadForm
+from .forms import ReversalForm, SignupForm, UploadForm
 from .kpis import KPI_DEFINITIONS
-from .models import ColumnMapping, ExpenseColumnMapping, Organization, Sale
+from .models import ColumnMapping, ExpenseColumnMapping, ExpenseImport, Organization, Sale, SalesImport
 from .services import (ALIASES, MAX_COLUMNS, MAX_CSV_BYTES, MAX_HEADER_LENGTH, CSVValidationError,
                        parse_sales_upload, report_for, safe_csv_cell, save_sales_import,
                        EXPENSE_ALIASES, parse_expense_upload, save_expense_import)
@@ -126,7 +128,49 @@ def export_sales(request):
     response['Content-Disposition'] = 'attachment; filename="businesspulse_sales.csv"'
     writer = csv.writer(response)
     writer.writerow(['transaction_id', 'date', 'customer_id', 'revenue', 'cost'])
-    for sale in Sale.objects.filter(organization=organization).order_by('sale_date', 'pk').iterator():
+    for sale in Sale.objects.filter(organization=organization, is_active=True).order_by('sale_date', 'pk').iterator():
         writer.writerow([safe_csv_cell(sale.transaction_id), sale.sale_date.isoformat(),
                          safe_csv_cell(sale.customer_id), str(sale.revenue), str(sale.cost)])
     return response
+
+
+@login_required
+@require_http_methods(['GET'])
+def manage_imports(request):
+    organization = get_object_or_404(Organization, owner=request.user)
+    fields = ('id', 'filename', 'created_at', 'inserted_count', 'duplicate_count', 'reversed_at', 'dataset')
+    sales = SalesImport.objects.filter(organization=organization).order_by().annotate(
+        dataset=Value('sales', output_field=CharField())).values(*fields)
+    expenses = ExpenseImport.objects.filter(organization=organization).order_by().annotate(
+        dataset=Value('expenses', output_field=CharField())).values(*fields)
+    entries = sales.union(expenses, all=True).order_by('-created_at', 'dataset', '-id')
+    return render(request, 'tracker/imports.html', {
+        'organization': organization, 'page': Paginator(entries, 25).get_page(request.GET.get('page'))})
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def import_detail(request, dataset, batch_id):
+    from .import_management import preview_import, reverse_import
+    organization = get_object_or_404(Organization, owner=request.user)
+    status = 200
+    error = None
+    if request.method == 'POST':
+        form = ReversalForm(request.POST)
+        if form.is_valid():
+            try:
+                changed = reverse_import(organization=organization, user=request.user, dataset=dataset,
+                    batch_id=batch_id, token=form.cleaned_data['preview_token'], reason=form.cleaned_data['reason'])
+            except CSVValidationError as exc:
+                error = str(exc)
+                status = 409
+            else:
+                messages.success(request, 'Import reversed. Original records retained.' if changed else 'Import was already reversed; no changes made.')
+                return redirect('import_detail', dataset=dataset, batch_id=batch_id)
+        else:
+            error = 'Provide a reason and explicitly confirm after reviewing the impact.'
+            status = 400
+    preview = preview_import(organization=organization, user=request.user, dataset=dataset, batch_id=batch_id)
+    # New preview means a fresh, unchecked confirmation, including on stale/invalid POSTs.
+    form = ReversalForm(initial={'preview_token': preview['token']})
+    return render(request, 'tracker/import_detail.html', {**preview, 'form': form, 'error': error}, status=status)

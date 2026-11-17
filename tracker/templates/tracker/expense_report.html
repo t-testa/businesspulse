@@ -2,7 +2,7 @@
   <div class="panel-header"><h2>Operating expense intelligence</h2><a class="button secondary" href="{% url 'upload_expenses' %}">Upload expenses</a></div>
   <p class="muted">{{ report.period_name }} · Excludes direct costs already included in sales COGS. Estimates depend on complete, correctly classified imports; these are not certified accounting statements.</p>
   {% if not report.expense_available %}
-  <p>No expense data imported. Operating result and margin are unavailable until you import expenses.</p>
+  <p>No expense data imported or active: all previous expense records may have been reversed. Operating result and margin are unavailable until you import expenses.</p>
   {% elif not report.expense_count %}
   <p>No expense transactions in this period. The zero below reflects stored data only; it does not confirm that all costs have been supplied.</p>
   {% endif %}
@@ -11,7 +11,7 @@
     <article class="kpi-card"><div class="kpi-label">{{ card.label }}</div><div class="kpi-value">{{ card.value }}</div></article>
     {% endfor %}
   </div>
-  <p class="small">Estimated operating result = gross profit − operating expenses. Estimated operating margin = operating result ÷ revenue × 100; N/A when revenue is zero or expense data has never been imported.</p>
+  <p class="small">Estimated operating result = gross profit − operating expenses. Estimated operating margin = operating result ÷ revenue × 100; N/A when revenue is zero or no active expense data remains.</p>
 </section>
 <section class="panel">
   <h2>Operating expenses by category</h2>
@@ -32,7 +32,7 @@
 <section class="panel">
   <h2>Recent expense uploads</h2>
   <div class="table-scroll"><table><thead><tr><th>Filename</th><th>Imported</th><th>New expenses</th><th>Skipped duplicates</th></tr></thead><tbody>
-  {% for entry in expense_imports %}<tr><td>{{ entry.filename }}</td><td>{{ entry.created_at|date:'Y-m-d H:i' }}</td><td>{{ entry.inserted_count }}</td><td>{{ entry.duplicate_count }}</td></tr>
+  {% for entry in expense_imports %}<tr><td><a href="{% url 'import_detail' 'expenses' entry.pk %}">{{ entry.filename }}</a> · {{ entry.status }}</td><td>{{ entry.created_at|date:'Y-m-d H:i' }}</td><td>{{ entry.inserted_count }}</td><td>{{ entry.duplicate_count }}</td></tr>
   {% empty %}<tr><td colspan="4">No expense imports yet.</td></tr>{% endfor %}
   </tbody></table></div>
 </section>

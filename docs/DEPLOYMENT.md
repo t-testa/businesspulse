@@ -167,3 +167,40 @@ reupload no-op/conflict rollback, and persistence after redeployment. Do not use
 restored hosted database for automated tests or migration experiments. Existing
 HTTPS/secrets/backup/logging requirements remain in force. Expense data is subject
 to the same privacy, retention and access controls as sales.
+
+## v0.4 release and rollback constraints
+
+The owner reports v0.3 is deployed. This release is preparation only; do not merge,
+deploy, or migrate hosted/restored data without approval.
+
+`0004_import_management` adds active flags, reversal actor/time/reason and a workspace
+data revision. Existing rows default active and all history/mappings are preserved.
+It replaces unconditional organization/business-ID uniqueness with partial unique
+indexes for active rows. These supported PostgreSQL/SQLite indexes allow inactive
+history and one active corrected version to coexist. The migration is atomic but
+constraint/index changes can take locks; estimate duration on a synthetic copy
+representative of volume before scheduling an approved release.
+
+For release, back up and verify restore, pause writes and drain old application
+workers, apply migrations, then start only the reviewed v0.4 code and resume traffic.
+The current build-time migration alone does not coordinate old-worker shutdown.
+Do not enable reversals while old code can still serve reads/writes: v0.3 counts
+inactive rows and does not advance the new confirmation revision. This requires a
+controlled release window, not an assumption of zero downtime.
+
+Before any reversal has occurred, tested reverse migration can restore the prior
+schema. After reversal, a guard rejects schema rollback before dropping audit
+fields. Inactive historical IDs may also conflict with old unconditional uniqueness.
+Do not delete history to force rollback. A v0.3 code-only rollback is also unsafe,
+even if tables/columns are retained, because its reports ignore active status.
+Prefer a forward fix or an explicitly reviewed rollback that retains active filtering,
+revision updates and the new schema. Restoring a pre-release backup would lose later
+activity and requires a separate owner-approved recovery decision.
+
+After approved staging deployment, verify the 12-sale / CAD 750 / duplicate-only
+acceptance flow, other-workspace isolation, exports, stale confirmation in two tabs,
+corrected reimport, audit retention, and persistence after redeploy. Existing
+HTTPS, secret, backup, monitoring and synthetic-beta restrictions still apply.
+Financial and organization admin editing/deletion is disabled to prevent bypassing
+audit/revision rules; trusted database operators and shell scripts remain outside
+application guarantees. No hosted database was touched during development.

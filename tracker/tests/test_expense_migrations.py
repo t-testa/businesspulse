@@ -34,4 +34,5 @@ class ExpenseMigrationTests(TransactionTestCase):
             self.assertEqual(rollback.get_model('tracker', 'Sale').objects.count(), 1)
             self.assertEqual(rollback.get_model('tracker', 'ColumnMapping').objects.count(), 1)
         finally:
-            self.migrate('0003_expense_intelligence')
+            executor = MigrationExecutor(connection)
+            executor.migrate(executor.loader.graph.leaf_nodes())

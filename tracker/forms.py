@@ -58,3 +58,10 @@ class UploadForm(forms.Form):
         if uploaded.size > MAX_CSV_BYTES:
             raise forms.ValidationError('Maximum file size is 2 MB.')
         return uploaded
+
+
+class ReversalForm(forms.Form):
+    preview_token = forms.CharField(max_length=2000, widget=forms.HiddenInput)
+    reason = forms.CharField(max_length=1000, widget=forms.Textarea(attrs={'rows': 3}),
+                             label='Reason for reversal')
+    confirm = forms.BooleanField(label='I have reviewed the impact and confirm reversal of this import.')

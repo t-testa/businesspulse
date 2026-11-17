@@ -1,4 +1,4 @@
-# BusinessPulse — product definition, v0.3
+# BusinessPulse — product definition, v0.4
 
 ## Who is it for?
 
@@ -30,7 +30,7 @@ SMB owners and operators who want to see simple business KPIs from CSV exports w
 - Purchasing customers = COUNT(DISTINCT customer_id) over the selected period.
 - Revenue by month = SUM(revenue) grouped by transaction month for the selected period.
 
-All filters are based on **sale date**. No comparison metrics or growth rates are claimed in v0.1. Transaction IDs are unique *within each organization*. Reuploading identical IDs is a no-op, while conflicts are rejected without modifying data.
+All filters are based on **sale date**. No comparison metrics or growth rates are claimed in v0.1. Active transaction IDs are unique *within each organization*; inactive historical versions retain their original IDs. Reuploading identical IDs is a no-op, while conflicts are rejected without modifying data.
 
 ## CSV contract
 
@@ -60,8 +60,8 @@ Excel/XLSX, date/number-format conversion, mapping deletion/renaming management,
 ## Next releases
 
 - **v0.2 (shipped):** CSV-only local preview, mapping dropdowns, and saved workspace mappings. Excel support is deferred.
-- **v0.3 (this release):** operating expenses and predefined operating estimates; invoice/receivables templates, industry packs and reconciliation remain deferred.
-- **v0.4:** custom KPI builder with a constrained safe expression language (no arbitrary Python/SQL), roles, alerting, secure sharing.
+- **v0.3 (shipped):** operating expenses and predefined operating estimates; invoice/receivables templates, industry packs and reconciliation remain deferred.
+- **v0.4 (this release):** import management, auditable batch reversals and corrected reimports. Custom formulas, roles, alerts and sharing remain deferred.
 - **v1.0:** compliance/privacy workflows, billing, audited multi-tenant isolation, backups/restore drills, real customer onboarding.
 
 ## Operating expense intelligence (v0.3)
@@ -87,10 +87,10 @@ arbitrary formulas or accounting certification are supported.
 
 All time, last 30 days, last 90 days, and YTD apply to sale date and expense date
 using the same inclusive boundaries. Relative periods end today; all time retains
-existing behavior including future-dated rows. No successful expense import means
+existing behavior including future-dated rows. No active expense records means
 expenses are **Not imported** and both combined estimates are N/A. A zero-amount
-expense is valid data. After an expense import, an empty reporting period shows
-zero with an explicit incomplete-data qualification. Import existence cannot
+expense is valid data. When active expenses exist outside the period, an empty reporting period shows
+zero with an explicit incomplete-data qualification. Active expense existence cannot
 prove that every expense in a period has been provided.
 
 Acceptance: revenue 3,700 minus COGS 2,200 gives gross profit 1,500. Rent 600 +
@@ -102,3 +102,36 @@ sales, with four mapping fields. Expense mapping names and import history are
 scoped to the organization and stored separately. Identical reuploads do not add
 transactions; any conflicting ID fails the entire import, including mapping and
 history writes. Concurrent imports require PostgreSQL's organization-row lock.
+
+## Import management and corrections (v0.4)
+
+The active business grain is still one completed sale or operating expense per
+business ID per organization. Historical inactive versions may share an ID. All
+existing KPI formulas are unchanged and operate on active records only, including
+category/monthly charts, customer counts and sales exports.
+
+Owners can inspect a combined, paginated import list and the exact rows created by
+each batch. The all-time impact preview is read-only. Reversal requires a reason
+(maximum 1,000 characters), explicit confirmation, a valid recent signed preview
+and CSRF-protected POST. Reversal atomically deactivates only rows whose original
+import_batch is the selected import and preserves original amounts, IDs, mappings,
+import counts, actor, timestamp and reason. Duplicate-only uploads own no rows.
+Repeated reversal does not rewrite audit details or affect later corrected uploads.
+
+A successful import or reversal advances the workspace revision. An outstanding
+confirmation for a not-yet-reversed import becomes stale; users must review the
+new impact. Preview tokens are bound to owner, workspace, dataset and import and
+expire after 30 minutes. Concurrent imports and reversals use the same organization
+lock under PostgreSQL READ COMMITTED. Foreign/unknown import IDs return 404.
+
+After all expenses are reversed, reporting returns to **Not imported** and combined
+operating estimates become N/A even when an old duplicate-only import remains Active.
+An active zero-valued expense remains a genuine stored zero. Corrected reuploads may
+reuse IDs once no active version exists. No permanent deletion, per-row editing,
+reactivation, refunds or accounting adjustment ledger is introduced.
+
+Acceptance: in an isolated synthetic Demo Company, preserve all 12 sales while
+reversing the original CAD 750 three-expense batch, retaining its duplicate-only
+history entry. Show the original as Reversed and expenses as Not imported. Another
+mappingtest workspace retains its CAD 750. Reupload creates three active expenses
+and leaves the original three inactive with their reversal audit intact.

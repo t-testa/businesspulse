@@ -12,6 +12,7 @@ A Django 5.2 application in the public [t-testa/businesspulse repository](https:
 - Browser-local preview of the first 10 CSV rows, editable column mappings, and reusable workspace-scoped mappings.
 - Separate operating expenses, category breakdown, monthly expense trend, and estimated operating result/margin.
 - Revenue, gross profit, gross margin, transaction count, average transaction value, purchasing customers.
+- Import management with read-only impact previews, auditable batch reversal and corrected reimports.
 - Reporting period filters, simple monthly revenue chart, recent import history.
 - KPI show/hide preferences and transaction CSV export (with formula-injection protection).
 - SQLite development, PostgreSQL production configuration, WhiteNoise, Gunicorn, GitHub Actions tests, Render deployment instructions.
@@ -170,9 +171,10 @@ operating expense, nonnegative amounts in the workspace currency, and YYYY-MM-DD
 dates. Consistent category spelling matters. No refunds, taxes, accrual adjustments,
 depreciation, currency conversion or accounting certification are included.
 
-The dashboard applies one reporting period to both datasets. No expense imports
-means **Not imported**, with operating result/margin unavailable. Once expenses
-have been imported, an empty period shows a qualified zero, not a claim of complete
+The dashboard applies one reporting period to both datasets. No active expense records
+means **Not imported**, with operating result/margin unavailable, including after all
+expenses are reversed. With active expenses outside a selected period, an empty period
+shows a qualified zero, not a claim of complete
 books. Estimated operating margin is N/A when revenue is zero. Expense cards are
 always shown separately; existing sales-card preferences remain unchanged.
 
@@ -186,3 +188,30 @@ operating result when combining it with that different sales fixture.
 Apply additive migration `0003_expense_intelligence` only to an approved target.
 For development verification, use an isolated synthetic database, never a restored
 hosted database. See [expense architecture, tests and rollback](docs/EXPENSE_INTELLIGENCE.md).
+
+## v0.4 import management and corrections
+
+Open **Imports** to see sales and expense batches together. **Inspect import** shows
+the exact records created by that batch and current vs. after-reversal financial
+totals for all time. Viewing a preview changes nothing. Supply a reason, check the
+confirmation box and submit **Reverse this import** to deactivate the owned records.
+Original values, history, actor, time and reason remain available for inspection.
+Dashboard metrics, charts and the sales CSV export exclude inactive records.
+
+Skipped duplicates are not owned by the later upload. Reversing a duplicate-only
+batch changes its history status but leaves the original records active. Reverse
+the original batch to remove those records from reporting. Repeating reversal is
+harmless. Upload a corrected CSV afterward to create a new active version using the
+same business ID; the old version remains inactive. There is no arbitrary editing
+or reactivation UI. Saved mappings are unaffected.
+
+Confirmations expire after 30 minutes and must be renewed if another import or
+reversal changes the workspace. Recheck the refreshed impact and confirm again.
+PostgreSQL serializes these operations per organization. SQLite remains sequential
+local development only. Financial/organization admin screens are read-only.
+
+Migration `0004_import_management` preserves data while changing ID uniqueness to
+active rows only. **Do not roll back to v0.3 after reversals**: it would count inactive
+records. Schema rollback is guarded once reversal history exists. See
+[architecture, tradeoffs, migration and exact test results](docs/IMPORT_MANAGEMENT.md)
+and the [release runbook](docs/DEPLOYMENT.md) before an approved deployment.
