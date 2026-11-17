@@ -46,6 +46,9 @@ class ImportManagementMigrationTests(TransactionTestCase):
         batch=ExpenseImport.objects.create(organization=org,uploaded_by=user,filename='old.csv',
             reversed_at=timezone.now(),reversed_by=user,reversal_reason='Correct amount')
         Expense.objects.create(organization=org,import_batch=batch,expense_id='E1',date=date(2026,11,1),category='Rent',amount=10,is_active=False)
-        with self.assertRaises(IrreversibleError):self.migrate('0003_expense_intelligence')
+        try:
+            with self.assertRaises(IrreversibleError):self.migrate('0003_expense_intelligence')
+        finally:
+            executor=MigrationExecutor(connection);executor.migrate(executor.loader.graph.leaf_nodes())
         self.assertEqual(ExpenseImport.objects.get().reversal_reason,'Correct amount')
         self.assertFalse(Expense.objects.get().is_active)

@@ -1,4 +1,4 @@
-# BusinessPulse — product definition, v0.4
+# BusinessPulse — product definition, v0.5
 
 ## Who is it for?
 
@@ -55,7 +55,7 @@ are only usability aids.
 
 ## Out of scope (intentional)
 
-Excel/XLSX, date/number-format conversion, mapping deletion/renaming management, per-industry templates, custom formulas, joins across files, permissioned multi-user organizations, automated ERP integrations, refunds, tax, multi-currency conversion, billing, AI insights, email verification, self-serve password resets, and production privacy/legal terms.
+Excel/XLSX, date/number-format conversion, mapping deletion/renaming management, per-industry templates, custom formulas, joins across files, permissioned multi-user organizations, automated ERP integrations, refunds, tax, multi-currency conversion, billing, AI insights, email verification and production privacy/legal terms.
 
 ## Next releases
 
@@ -135,3 +135,15 @@ reversing the original CAD 750 three-expense batch, retaining its duplicate-only
 history entry. Show the original as Reversed and expenses as Not imported. Another
 mappingtest workspace retains its CAD 750. Reupload creates three active expenses
 and leaves the original three inactive with their reversal audit intact.
+
+## v0.5 secure account recovery
+
+Existing accounts can request a generic password-reset email and choose a validated
+password through a 30-minute, single-use Django link. Signed-in owners can change
+passwords with their current password. The same user/workspace identity, imports,
+reversal history and financial records survive both operations. Shared PostgreSQL
+limits and deferred email delivery avoid process-local throttling and account-existence
+responses. Ambiguous email addresses fail closed. Hosted public signup is closed
+until verified-email enrollment exists; existing synthetic addresses must be reviewed
+before enabling recovery. The hosted feature is opt-in, with no real-data or delivery
+SLA claim. See [design, limits and acceptance](ACCOUNT_RECOVERY.md).

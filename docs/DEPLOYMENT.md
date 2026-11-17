@@ -54,7 +54,7 @@ has approved the deployment workflow. A public staging URL is not private access
 4. Start Command (the command after `web:` in Procfile):
 
    ```sh
-   gunicorn businesspulse.wsgi:application --bind 0.0.0.0:${PORT:-8000} --access-logfile - --error-logfile - --access-logformat '%(m)s %(U)s %(s)s %(L)s'
+   python scripts/start_service.py
    ```
 
    Set the health-check path to `/health/`. It is a process-liveness endpoint,
@@ -71,7 +71,7 @@ has approved the deployment workflow. A public staging URL is not private access
      require it. Use the internal URL for the same-region staging service.
      `sslmode=require` encrypts the connection but does not verify the server's
      identity like `verify-full` with an appropriate CA configuration does.
-6. Deploy. Verify `/health/`, login/signup pages and static CSS over HTTPS. Import sample CSV.
+6. Deploy. Verify `/health/`, login and static CSS over HTTPS; hosted signup defaults closed. Import sample CSV.
 7. Redeploy with a small non-schema change, check saved sale rows remain intact and test a rollback procedure.
 8. Monitor logs. Configure alerts, backup restoration tests, and dependency updates before inviting users.
 
@@ -204,3 +204,17 @@ HTTPS, secret, backup, monitoring and synthetic-beta restrictions still apply.
 Financial and organization admin editing/deletion is disabled to prevent bypassing
 audit/revision rules; trusted database operators and shell scripts remain outside
 application guarantees. No hosted database was touched during development.
+
+## v0.5 account recovery activation
+
+The owner reports v0.4 is deployed and reversal acceptance passed. Migration 0005
+only creates recovery queue/rate-limit tables and is compatible with v0.4 workers.
+Follow the [account recovery runbook](ACCOUNT_RECOVERY.md) for backup verification,
+email-ownership review, Resend HTTPS configuration, exact environment variables,
+Start Command change, activation and rollback. No hosted migration/deployment was
+performed during development. Recovery defaults disabled and public signup defaults
+closed with DEBUG=0. Configure `python scripts/start_service.py` explicitly in Render;
+the old Gunicorn command does not launch delivery and logs sensitive URL paths.
+
+Keep existing HTTPS/secrets/PostgreSQL/backup requirements. Live provider delivery,
+proxy behavior and Free-instance queue latency still need approved staging acceptance.

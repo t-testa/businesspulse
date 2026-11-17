@@ -12,12 +12,13 @@ from django.test import SimpleTestCase
 class ProductionSettingsTests(SimpleTestCase):
     def load_settings(self, **overrides):
         env = {key: value for key, value in os.environ.items()
-               if not key.startswith(('DJANGO_', 'RENDER_')) and key not in ('DATABASE_URL', 'DB_SSL_REQUIRE')}
+               if not key.startswith(('DJANGO_', 'RENDER_')) and key not in ('DATABASE_URL', 'DB_SSL_REQUIRE', 'ACCOUNT_RECOVERY_ENABLED', 'RECOVERY_ORIGIN', 'EMAIL_BACKEND', 'RESEND_API_KEY', 'DEFAULT_FROM_EMAIL', 'PUBLIC_SIGNUP_ENABLED')}
         env.update(overrides)
         code = '''
 import json
 from businesspulse import settings as s
 print(json.dumps({
+    'recovery': s.ACCOUNT_RECOVERY_ENABLED, 'signup': s.PUBLIC_SIGNUP_ENABLED,
     'debug': s.DEBUG, 'engine': s.DATABASES['default']['ENGINE'],
     'options': s.DATABASES['default'].get('OPTIONS', {}),
     'hosts': s.ALLOWED_HOSTS, 'origins': s.CSRF_TRUSTED_ORIGINS,
@@ -92,3 +93,21 @@ print(json.dumps({
         self.assertTrue(settings['redirect'])
         self.assertEqual(settings['proxy'], ['HTTP_X_FORWARDED_PROTO', 'https'])
         self.assertEqual(settings['options']['sslmode'], 'require')
+
+    def test_hosted_recovery_defaults_closed_and_requires_explicit_delivery_configuration(self):
+        env=self.production_env()
+        result=self.load_settings(**env)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertFalse(json.loads(result.stdout)['recovery'])
+        self.assertFalse(json.loads(result.stdout)['signup'])
+        env.update(ACCOUNT_RECOVERY_ENABLED='1')
+        self.assertNotEqual(self.load_settings(**env).returncode,0)
+        env.update(RECOVERY_ORIGIN='https://staging.example.invalid')
+        self.assertNotEqual(self.load_settings(**env).returncode,0)
+        env.update(EMAIL_BACKEND='tracker.email_backend.ResendBackend',RESEND_API_KEY='synthetic-unused',
+                   DEFAULT_FROM_EMAIL='BusinessPulse <recovery@example.test>')
+        self.assertEqual(self.load_settings(**env).returncode,0)
+        for origin in ('http://staging.example.invalid','https://user:pass@example.test',
+                       'https://example.test/path','https://example.test/?query=1'):
+            env['RECOVERY_ORIGIN']=origin
+            self.assertNotEqual(self.load_settings(**env).returncode,0)
