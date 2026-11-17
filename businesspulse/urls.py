@@ -13,6 +13,8 @@ urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('upload/', views.upload_sales, name='upload_sales'),
     path('expenses/upload/', views.upload_expenses, name='upload_expenses'),
+    path('imports/', views.manage_imports, name='manage_imports'),
+    path('imports/<str:dataset>/<int:batch_id>/', views.import_detail, name='import_detail'),
     path('preferences/', views.preferences, name='preferences'),
     path('export/', views.export_sales, name='export_sales'),
 ]

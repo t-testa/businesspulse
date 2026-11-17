@@ -1,0 +1,18 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Import management | BusinessPulse{% endblock %}
+{% block content %}
+<h1>Import management</h1>
+<p>{{ organization.name }} · Inspect an import and its financial impact before reversing it. Original records and history are retained.</p>
+<section class="panel table-scroll">
+<table><thead><tr><th>Filename</th><th>Date</th><th>Dataset</th><th>Inserted</th><th>Duplicates skipped</th><th>Status</th><th>Action</th></tr></thead><tbody>
+{% for entry in page %}
+<tr><td>{{ entry.filename }}</td><td>{{ entry.created_at|date:'Y-m-d H:i' }}</td><td>{{ entry.dataset|capfirst }}</td><td>{{ entry.inserted_count }}</td><td>{{ entry.duplicate_count }}</td><td>{% if entry.reversed_at %}Reversed{% else %}Active{% endif %}</td><td><a href="{% url 'import_detail' entry.dataset entry.id %}">Inspect import</a></td></tr>
+{% empty %}<tr><td colspan="7">No imports yet.</td></tr>{% endfor %}
+</tbody></table>
+</section>
+<nav aria-label="Import pages">
+{% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">Previous</a>{% endif %}
+<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+{% if page.has_next %}<a href="?page={{ page.next_page_number }}">Next</a>{% endif %}
+</nav>
+{% endblock %}

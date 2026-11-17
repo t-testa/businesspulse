@@ -11,6 +11,7 @@ class Organization(models.Model):
     owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='organization')
     name = models.CharField(max_length=140)
     currency = models.CharField(max_length=3, choices=CURRENCIES, default='CAD')
+    data_revision = models.PositiveBigIntegerField(default=0)
     visible_kpis = models.JSONField(default=default_kpis)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -40,12 +41,22 @@ class SalesImport(models.Model):
     inserted_count = models.PositiveIntegerField(default=0)
     duplicate_count = models.PositiveIntegerField(default=0)
 
+    reversed_at = models.DateTimeField(null=True, blank=True)
+    reversed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+                                    null=True, blank=True, related_name='+')
+    reversal_reason = models.CharField(max_length=1000, blank=True, default='')
+
+    @property
+    def status(self):
+        return 'Reversed' if self.reversed_at else 'Active'
+
     class Meta:
         ordering = ['-created_at']
 
 
 class Sale(models.Model):
     """One row per completed sale, NOT an invoice line or a monthly summary."""
+    is_active = models.BooleanField(default=True)
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='sales')
     import_batch = models.ForeignKey(SalesImport, on_delete=models.PROTECT, related_name='sales')
     transaction_id = models.CharField(max_length=100)
@@ -56,7 +67,7 @@ class Sale(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=['organization', 'transaction_id'], name='unique_org_transaction'),
+            models.UniqueConstraint(fields=['organization', 'transaction_id'], condition=Q(is_active=True), name='unique_active_org_transaction'),
             models.CheckConstraint(condition=Q(revenue__gte=0), name='sale_revenue_nonnegative'),
             models.CheckConstraint(condition=Q(cost__gte=0), name='sale_cost_nonnegative'),
         ]
@@ -90,12 +101,22 @@ class ExpenseImport(models.Model):
     inserted_count = models.PositiveIntegerField(default=0)
     duplicate_count = models.PositiveIntegerField(default=0)
 
+    reversed_at = models.DateTimeField(null=True, blank=True)
+    reversed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+                                    null=True, blank=True, related_name='+')
+    reversal_reason = models.CharField(max_length=1000, blank=True, default='')
+
+    @property
+    def status(self):
+        return 'Reversed' if self.reversed_at else 'Active'
+
     class Meta:
         ordering = ['-created_at', '-pk']
 
 
 class Expense(models.Model):
     """One operating expense transaction; excludes direct costs already in sales."""
+    is_active = models.BooleanField(default=True)
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='expenses')
     import_batch = models.ForeignKey(ExpenseImport, on_delete=models.PROTECT, related_name='expenses')
     expense_id = models.CharField(max_length=100)
@@ -105,7 +126,7 @@ class Expense(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=['organization', 'expense_id'], name='unique_org_expense'),
+            models.UniqueConstraint(fields=['organization', 'expense_id'], condition=Q(is_active=True), name='unique_active_org_expense'),
             models.CheckConstraint(condition=Q(amount__gte=0), name='expense_amount_nonnegative'),
         ]
         indexes = [models.Index(fields=['organization', 'date'], name='expense_org_date_idx')]

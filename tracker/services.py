@@ -9,7 +9,7 @@ import io
 import re
 
 from django.db import transaction
-from django.db.models import Count, Sum
+from django.db.models import Count, F, Sum
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
@@ -200,7 +200,7 @@ def save_sales_import(*, organization, user, file_name: str, rows: list[SaleRow]
         raise CSVValidationError('Only the workspace owner can import sales.')
     existing = {
         row.transaction_id: row for row in
-        Sale.objects.filter(organization=organization, transaction_id__in=[item.transaction_id for item in rows])
+        Sale.objects.filter(organization=organization, is_active=True, transaction_id__in=[item.transaction_id for item in rows])
     }
     to_add = []
     duplicates = 0
@@ -227,6 +227,7 @@ def save_sales_import(*, organization, user, file_name: str, rows: list[SaleRow]
              customer_id=row.customer_id, revenue=row.revenue, cost=row.cost)
         for row in to_add
     ])
+    Organization.objects.filter(pk=organization.pk).update(data_revision=F('data_revision') + 1)
     return batch
 
 
@@ -237,7 +238,7 @@ def save_expense_import(*, organization, user, file_name, rows):
     if organization.owner_id != user.pk:
         raise CSVValidationError('Only the workspace owner can import expenses.')
     existing = {row.expense_id: row for row in Expense.objects.filter(
-        organization=organization, expense_id__in=[item.expense_id for item in rows])}
+        organization=organization, is_active=True, expense_id__in=[item.expense_id for item in rows])}
     to_add = []
     duplicates = 0
     for row in rows:
@@ -253,6 +254,7 @@ def save_expense_import(*, organization, user, file_name, rows):
         filename=file_name[:200], inserted_count=len(to_add), duplicate_count=duplicates)
     Expense.objects.bulk_create([Expense(organization=organization, import_batch=batch,
         expense_id=row.expense_id, date=row.date, category=row.category, amount=row.amount) for row in to_add])
+    Organization.objects.filter(pk=organization.pk).update(data_revision=F('data_revision') + 1)
     return batch
 
 
@@ -270,9 +272,16 @@ def format_currency(value: Decimal, code: str) -> str:
     return f'{code} {value:,.2f}'
 
 
-def report_for(organization, period='all'):
+def report_for(organization, period='all', *, exclude_import=None):
     """Metrics are computed solely from this organization's rows, at transaction grain."""
-    qs = Sale.objects.filter(organization=organization)
+    qs = Sale.objects.filter(organization=organization, is_active=True)
+    expenses = organization.expenses.filter(is_active=True)
+    if exclude_import:
+        dataset, batch_id = exclude_import
+        if dataset == 'sales':
+            qs = qs.exclude(import_batch_id=batch_id)
+        elif dataset == 'expenses':
+            expenses = expenses.exclude(import_batch_id=batch_id)
     today = timezone.localdate()
     period_options = {'all': 'All time', '30': 'Last 30 days', '90': 'Last 90 days', 'ytd': 'Year to date'}
     if period not in period_options:
@@ -311,9 +320,9 @@ def report_for(organization, period='all'):
         }
         for entry in monthly
     ]
-    expense_qs = _in_period(organization.expenses.all(), 'date', period, today)
-    # Import history establishes availability, not the selected period's row count.
-    expense_available = organization.expense_imports.exists()
+    expense_qs = _in_period(expenses, 'date', period, today)
+    # Historical/reversed imports do not establish current expense coverage.
+    expense_available = expenses.exists()
     expense_total = expense_qs.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
     operating_result = gross_profit - expense_total if expense_available else None
     operating_margin = operating_result / revenue * 100 if expense_available and revenue else None
@@ -331,6 +340,11 @@ def report_for(organization, period='all'):
                       'width': round(row['total'] / max_expense * 100) if max_expense else 0}
                      for row in expense_months]
     return {
+        'financial_totals': [
+            {'label': 'Revenue', 'value': values['revenue']},
+            {'label': 'Direct costs', 'value': format_currency(cost, code)},
+            {'label': 'Gross profit', 'value': values['gross_profit']},
+        ] + expense_cards,
         'expense_cards': expense_cards, 'expense_available': expense_available,
         'expense_count': expense_qs.count(), 'expense_categories': categories, 'expense_chart': expense_chart,
         'cards': cards, 'has_data': count > 0, 'chart_rows': chart_rows,

@@ -136,3 +136,35 @@ class ColumnMappingBrowserTests(StaticLiveServerTestCase):
             browser.close()
         self.assertEqual(Expense.objects.count(), 3)
         self.assertEqual(ExpenseColumnMapping.objects.count(), 1)
+
+    def test_import_reversal_preview_confirmation_and_audit(self):
+        from playwright.sync_api import expect, sync_playwright
+        from tracker.models import Expense, ExpenseImport
+        from tracker.services import ExpenseRow, save_expense_import
+        from datetime import date
+        from decimal import Decimal
+        batch=save_expense_import(organization=self.organization,user=self.user,file_name='browser-expenses.csv',
+            rows=[ExpenseRow('BROWSER-E1',date(2026,11,1),'Rent',Decimal('750'))])
+        with sync_playwright() as playwright:
+            browser=playwright.chromium.launch()
+            context,page=self.open_page(browser)
+            page.goto(self.live_server_url+'/imports/')
+            page.get_by_role('link',name='Inspect import').click()
+            expect(page.locator('#import-records tbody tr')).to_have_count(1)
+            expect(page.locator('#reversal-impact')).to_contain_text('CAD 750.00')
+            expect(page.locator('#reversal-impact')).to_contain_text('Not imported')
+            page.locator('#id_reason').fill('Wrong synthetic file')
+            page.get_by_role('button',name='Reverse this import').click()
+            # Browser required checkbox prevents POST until explicitly checked.
+            expect(page.locator('#id_confirm')).not_to_be_checked()
+            page.locator('#id_confirm').check()
+            page.get_by_role('button',name='Reverse this import').click()
+            expect(page.get_by_text('Import reversed. Original records retained.',exact=True)).to_be_visible()
+            expect(page.get_by_text('Reason: Wrong synthetic file',exact=True)).to_be_visible()
+            expect(page.get_by_role('button',name='Reverse this import')).to_have_count(0)
+            expect(page.locator('#import-records')).to_contain_text('Inactive')
+            page.goto(self.live_server_url+'/')
+            expect(page.get_by_text('Not imported',exact=True)).to_be_visible()
+            context.close();browser.close()
+        self.assertFalse(Expense.objects.get().is_active)
+        self.assertEqual(ExpenseImport.objects.get(pk=batch.pk).reversal_reason,'Wrong synthetic file')

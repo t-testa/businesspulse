@@ -51,7 +51,7 @@
   <div class="panel-header"><h2>Recent uploads</h2><a class="link" href="{% url 'export_sales' %}">Export transaction CSV</a></div>
   <div class="table-scroll"><table><thead><tr><th>Filename</th><th>Imported</th><th>New sales</th><th>Skipped duplicates</th></tr></thead><tbody>
     {% for entry in imports %}
-    <tr><td>{{ entry.filename }}</td><td>{{ entry.created_at|date:'Y-m-d H:i' }}</td><td>{{ entry.inserted_count }}</td><td>{{ entry.duplicate_count }}</td></tr>
+    <tr><td><a href="{% url 'import_detail' 'sales' entry.pk %}">{{ entry.filename }}</a> · {{ entry.status }}</td><td>{{ entry.created_at|date:'Y-m-d H:i' }}</td><td>{{ entry.inserted_count }}</td><td>{{ entry.duplicate_count }}</td></tr>
     {% empty %}<tr><td colspan="4">No imports yet.</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
