@@ -9,8 +9,9 @@ from django.views.decorators.http import require_http_methods
 
 from .forms import SignupForm, UploadForm
 from .kpis import KPI_DEFINITIONS
-from .models import Organization, Sale
-from .services import CSVValidationError, parse_sales_csv, report_for, safe_csv_cell, save_sales_import
+from .models import ColumnMapping, Organization, Sale
+from .services import (ALIASES, MAX_COLUMNS, MAX_CSV_BYTES, MAX_HEADER_LENGTH, CSVValidationError,
+                       parse_sales_upload, report_for, safe_csv_cell, save_sales_import)
 
 
 def signup(request):
@@ -44,20 +45,42 @@ def dashboard(request):
 @require_http_methods(['GET', 'POST'])
 def upload_sales(request):
     organization = get_object_or_404(Organization, owner=request.user)
-    form = UploadForm(request.POST or None, request.FILES or None)
+    form = UploadForm(request.POST if request.method == 'POST' else None, request.FILES or None,
+                      organization=organization)
+    if getattr(request, 'csv_upload_error', None):
+        form.is_valid()
+        form.add_error(None, request.csv_upload_error)
     if request.method == 'POST' and form.is_valid():
         uploaded = form.cleaned_data['file']
         try:
-            rows = parse_sales_csv(uploaded)
-            batch = save_sales_import(organization=organization, user=request.user,
-                                      file_name=uploaded.name, rows=rows)
+            mapping = form.cleaned_data['mapping']
+            saved = form.cleaned_data['saved_mapping']
+            if mapping is None and saved is not None:
+                mapping = saved.columns
+            rows, columns = parse_sales_upload(uploaded, mapping)
+            # Keep saved metadata and sales in the same transaction. The import
+            # service's organization lock also serializes same-name mapping updates.
+            with transaction.atomic():
+                batch = save_sales_import(organization=organization, user=request.user,
+                                          file_name=uploaded.name, rows=rows)
+                if form.cleaned_data['mapping_name']:
+                    ColumnMapping.objects.update_or_create(
+                        organization=organization, name=form.cleaned_data['mapping_name'],
+                        defaults={'columns': columns},
+                    )
         except CSVValidationError as exc:
             form.add_error('file', str(exc))
         else:
             messages.success(request, f'Import complete: {batch.inserted_count} new sales, '
                                       f'{batch.duplicate_count} identical duplicates skipped.')
             return redirect('dashboard')
-    return render(request, 'tracker/upload.html', {'organization': organization, 'form': form})
+    return render(request, 'tracker/upload.html', {
+        'organization': organization, 'form': form,
+        'mapping_fields': [(key, key.replace('_', ' ').capitalize()) for key in ALIASES],
+        'preview_config': {'aliases': ALIASES, 'maxBytes': MAX_CSV_BYTES,
+                           'maxColumns': MAX_COLUMNS, 'maxHeaderLength': MAX_HEADER_LENGTH},
+        'saved_mappings': list(organization.column_mappings.values('id', 'columns')),
+    })
 
 
 @login_required

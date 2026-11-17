@@ -18,6 +18,20 @@ class Organization(models.Model):
         return self.name
 
 
+class ColumnMapping(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='column_mappings')
+    name = models.CharField(max_length=100)
+    columns = models.JSONField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name', 'pk']
+        constraints = [models.UniqueConstraint(fields=['organization', 'name'], name='unique_org_mapping_name')]
+
+    def __str__(self):
+        return self.name
+
+
 class SalesImport(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='imports')
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)

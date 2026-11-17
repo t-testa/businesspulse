@@ -7,11 +7,12 @@ from time import monotonic, sleep
 from unittest import skipUnless
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection, connections, transaction
 from django.test import TransactionTestCase
 
 from tracker.models import Organization, Sale, SalesImport
-from tracker.services import CSVValidationError, SaleRow, save_sales_import
+from tracker.services import CSVValidationError, SaleRow, parse_sales_csv, save_sales_import
 
 
 @skipUnless(connection.vendor == 'postgresql', 'Requires PostgreSQL row locks')
@@ -62,6 +63,15 @@ class ConcurrentImportTests(TransactionTestCase):
     def test_identical_concurrent_upload_is_idempotent(self):
         self.assertEqual(self.overlapping_import([self.row]), ('ok', 0, 1))
         self.assertEqual(Sale.objects.count(), 1)
+        self.assertEqual(SalesImport.objects.count(), 2)
+
+    def test_mapped_overlapping_upload_inserts_only_new_transaction(self):
+        rows = parse_sales_csv(SimpleUploadedFile('mapped.csv',
+            b'Receipt,When,Buyer,Net,Expense\nSHARED,2026-11-02,CUSTOMER,100,40\nNEW,2026-11-02,CUSTOMER,50,20\n'),
+            {'transaction_id': 'Receipt', 'date': 'When', 'customer_id': 'Buyer',
+             'revenue': 'Net', 'cost': 'Expense'})
+        self.assertEqual(self.overlapping_import(rows), ('ok', 1, 1))
+        self.assertEqual(Sale.objects.count(), 2)
         self.assertEqual(SalesImport.objects.count(), 2)
 
     def test_conflicting_concurrent_upload_is_atomic(self):
