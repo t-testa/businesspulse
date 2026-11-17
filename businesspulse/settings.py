@@ -35,6 +35,7 @@ INSTALLED_APPS = [
 ]
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'tracker.recovery_headers.FormReferrerPolicyMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -47,12 +48,13 @@ ROOT_URLCONF = 'businesspulse.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
+        'DIRS': [BASE_DIR / 'tracker' / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
+                'tracker.context_processors.account_options',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
@@ -119,3 +121,32 @@ LOGGING = {
         'tracker': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
     },
 }
+
+
+# Delivery is explicitly opt-in on hosted environments. No live credentials in code.
+ACCOUNT_RECOVERY_ENABLED = os.environ.get('ACCOUNT_RECOVERY_ENABLED', '1' if DEBUG else '0') == '1'
+PASSWORD_RESET_TIMEOUT = 1800
+RECOVERY_ORIGIN = os.environ.get('RECOVERY_ORIGIN', 'http://127.0.0.1:8000' if DEBUG else '')
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend' if DEBUG
+                               else 'django.core.mail.backends.dummy.EmailBackend')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'BusinessPulse <noreply@example.invalid>')
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+EMAIL_TIMEOUT = 10
+SECURE_REFERRER_POLICY = 'no-referrer'
+# Never trust arbitrary X-Forwarded-For values for rate limiting. REMOTE_ADDR may
+# conservatively group clients behind Render's proxy; global/address limits remain shared.
+if ACCOUNT_RECOVERY_ENABLED:
+    from urllib.parse import urlsplit
+    _origin = urlsplit(RECOVERY_ORIGIN)
+    if (_origin.scheme not in ('http', 'https') or not _origin.hostname or _origin.username
+            or _origin.password or _origin.path not in ('', '/') or _origin.query or _origin.fragment
+            or (not DEBUG and _origin.scheme != 'https')):
+        raise ImproperlyConfigured('RECOVERY_ORIGIN must be an explicit canonical origin (HTTPS in production)')
+    if not DEBUG and (EMAIL_BACKEND != 'tracker.email_backend.ResendBackend' or not RESEND_API_KEY
+                      or 'example.invalid' in DEFAULT_FROM_EMAIL):
+        raise ImproperlyConfigured('Enabled hosted recovery requires Resend credentials and a verified sender')
+LOGGING['filters'] = {'redact_recovery': {'()': 'tracker.recovery_logging.RedactRecovery'}}
+LOGGING['handlers']['console']['filters'] = ['redact_recovery']
+
+# Existing signup does not verify email ownership. Hosted beta is invitation-only.
+PUBLIC_SIGNUP_ENABLED = os.environ.get('PUBLIC_SIGNUP_ENABLED', '1' if DEBUG else '0') == '1'

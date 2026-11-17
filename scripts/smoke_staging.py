@@ -31,15 +31,19 @@ while True:
 
 status, headers, _ = request('/health/', forwarded_https=False)
 assert status == 301 and headers['Location'].startswith('https://')
-status, headers, body = request('/signup/')
+assert request('/signup/')[0] == 404
+status, headers, body = request('/accounts/login/')
 assert status == 200
 assert 'max-age=3600' in headers['Strict-Transport-Security']
 assert 'Secure' in headers['Set-Cookie']
 assert headers['X-Frame-Options'] == 'DENY'
 stylesheet = re.search(rb'href="(/static/tracker/styles\.[^"]+\.css)"', body).group(1).decode()
 assert request(stylesheet)[0] == 200
-assert request('/signup/', method='POST', body='username=csrf-test',
+assert request('/accounts/password-reset/', method='POST', body='username=csrf-test',
                headers={'Content-Type': 'application/x-www-form-urlencoded'})[0] == 403
 assert request('/health/', headers={'Host': 'untrusted.invalid'})[0] == 400
-print('Gunicorn smoke passed: health, HTTPS redirect, signup, secure CSRF cookie, HSTS, '
+assert request('/accounts/password-reset/')[0] == 200
+status, headers, _ = request('/accounts/reset/invalid/synthetic-token/')
+assert headers['Referrer-Policy'] == 'no-referrer'
+print('Gunicorn smoke passed: health, HTTPS redirect, closed signup, login, secure CSRF cookie, HSTS, '
       'frame protection, hashed CSS, CSRF rejection, and host validation.')

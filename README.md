@@ -6,7 +6,8 @@ A Django 5.2 application in the public [t-testa/businesspulse repository](https:
 
 ## What is already coded
 
-- Account sign-up, sign-in and sign-out using Django authentication.
+- Django sign-in/sign-out, self-service password recovery and authenticated password change.
+- Database-backed recovery abuse controls; hosted public signup is closed by default pending email verification.
 - One private business workspace per account, with CAD or USD currency chosen during signup.
 - UTF-8 sales CSV ingestion with column aliases, validation, atomic imports and duplicate protection.
 - Browser-local preview of the first 10 CSV rows, editable column mappings, and reusable workspace-scoped mappings.
@@ -18,7 +19,7 @@ A Django 5.2 application in the public [t-testa/businesspulse repository](https:
 - SQLite development, PostgreSQL production configuration, WhiteNoise, Gunicorn, GitHub Actions tests, Render deployment instructions.
 - Reviewed **fictional** sales/expense CSV fixtures and automated regression tests.
 
-**Limits:** Completed sales and operating expense transactions in one currency; exactly one transaction per row. This is **not** a generic arbitrary-data upload engine yet. No Excel, date-format conversion, chart builder, payment processing, refunds, tax, account recovery, rate limiting or email verification. See [product specification](docs/PRODUCT.md).
+**Limits:** Completed sales and operating expense transactions in one currency; exactly one transaction per row. This is **not** a generic arbitrary-data upload engine yet. No Excel, date-format conversion, chart builder, payment processing, refunds, tax or verified-email enrollment. Recovery is opt-in on staging; historical account emails require review. See [product specification](docs/PRODUCT.md).
 
 ## Quick start — Windows PowerShell
 
@@ -215,3 +216,13 @@ active rows only. **Do not roll back to v0.3 after reversals**: it would count i
 records. Schema rollback is guarded once reversal history exists. See
 [architecture, tradeoffs, migration and exact test results](docs/IMPORT_MANAGEMENT.md)
 and the [release runbook](docs/DEPLOYMENT.md) before an approved deployment.
+
+## v0.5 account recovery
+
+See [account recovery setup and deployment](docs/ACCOUNT_RECOVERY.md) for provider
+configuration, rate limits, email-ownership prerequisites, rollback and acceptance.
+Locally, run `python manage.py process_recovery` alongside `runserver`; synthetic
+reset emails appear in the console. Tests never send real mail. On Render Free,
+use the HTTPS Resend adapter and `python scripts/start_service.py` as Start Command
+only after approval. No paid worker or additional service is required. Hosted
+recovery remains disabled until explicitly configured; public signup defaults off.

@@ -134,3 +134,20 @@ class Expense(models.Model):
     def clean(self):
         if self.import_batch_id and self.organization_id and self.import_batch.organization_id != self.organization_id:
             raise ValidationError('Import batch must belong to the same organization.')
+
+
+class RecoveryLimit(models.Model):
+    """Shared fixed-window counters; keys contain HMACs, never raw email/IP values."""
+    key = models.CharField(max_length=160, primary_key=True)
+    count = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(db_index=True)
+
+
+class RecoveryRequest(models.Model):
+    """Short-lived delivery intent, never a password or reset token."""
+    email = models.EmailField(max_length=254)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        ordering = ['pk']
