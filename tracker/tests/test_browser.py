@@ -94,3 +94,45 @@ class ColumnMappingBrowserTests(StaticLiveServerTestCase):
             browser.close()
         self.assertEqual(Sale.objects.count(), 0)
         self.assertEqual(ColumnMapping.objects.count(), 0)
+
+    def test_expense_preview_four_fields_save_reuse_and_report(self):
+        from playwright.sync_api import expect, sync_playwright
+        from tracker.models import Expense, ExpenseColumnMapping
+        from tracker.services import parse_sales_csv, save_sales_import
+        from .test_imports import HEADER, csv_upload
+        save_sales_import(organization=self.organization, user=self.user, file_name='synthetic.csv',
+                          rows=parse_sales_csv(csv_upload(HEADER+'S1,2026-11-01,C,3700,2200\n')))
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            context, page = self.open_page(browser)
+            page.goto(self.live_server_url + '/expenses/upload/')
+            posts = []
+            page.on('request', lambda request: posts.append(request.url) if request.method == 'POST' else None)
+            source = b'Reference,When,Group,Value\nE1,2026-11-01,Rent,600\nE2,2026-11-02,Software,100\nE3,2026-11-03,Utilities,50\n'
+            page.locator('#id_file').set_input_files({'name':'synthetic-expense.csv', 'mimeType':'text/csv', 'buffer':source})
+            expect(page.locator('#preview-table tbody tr')).to_have_count(3)
+            expect(page.locator('[data-mapping-field]')).to_have_count(4)
+            self.assertEqual(posts, [])
+            for field, column in [('expense_id','Reference'), ('date','When'), ('category','Group'), ('amount','Value')]:
+                page.locator('#map-'+field).select_option(column)
+            page.locator('#map-amount').select_option('Group')
+            expect(page.locator('#import-button')).to_be_disabled()
+            page.locator('#map-amount').select_option('Value')
+            page.locator('#id_mapping_name').fill('Expense export')
+            page.set_viewport_size({'width':390, 'height':844})
+            self.assertTrue(page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'))
+            page.locator('#import-button').click()
+            expect(page).to_have_url(self.live_server_url+'/')
+            expect(page.get_by_text('20.3%', exact=True)).to_be_visible()
+            expect(page.get_by_text('CAD 750.00', exact=True).first).to_be_visible()
+            self.assertEqual(len(posts), 1)
+            page.goto(self.live_server_url+'/expenses/upload/')
+            page.locator('#id_saved_mapping').select_option(label='Expense export')
+            page.locator('#id_file').set_input_files({'name':'synthetic-expense.csv', 'mimeType':'text/csv', 'buffer':source})
+            expect(page.locator('#map-amount')).to_have_value('Value')
+            page.locator('#import-button').click()
+            expect(page.get_by_text('Import complete: 0 new expenses, 3 identical duplicates skipped.')).to_be_visible()
+            context.close()
+            browser.close()
+        self.assertEqual(Expense.objects.count(), 3)
+        self.assertEqual(ExpenseColumnMapping.objects.count(), 1)

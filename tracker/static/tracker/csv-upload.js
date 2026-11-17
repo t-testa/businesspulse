@@ -81,11 +81,11 @@
     function update() {
       const mapping = Object.fromEntries(selects.map(select => [select.dataset.mappingField, select.value]));
       const values = Object.values(mapping);
-      const valid = headers.length && values.every(value => headers.includes(value)) && new Set(values).size === 5;
+      const valid = headers.length && values.every(value => headers.includes(value)) && new Set(values).size === selects.length;
       hidden.value = JSON.stringify(mapping);
       button.disabled = !valid || submitting;
       status.textContent = valid ? 'Preview ready. Review the mappings, then import. All rows will be validated on the server.'
-        : 'Choose a different source column for each of the five required fields. Missing or ambiguous suggestions need your review.';
+        : 'Choose a different source column for each of the required fields. Missing or ambiguous suggestions need your review.';
     }
     function applyMapping(mapping) {
       selects.forEach(select => {

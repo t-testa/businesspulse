@@ -50,10 +50,11 @@ uploads/
 media/
 exports/
 
-# Only the explicitly reviewed fictional sales fixture belongs in Git.
+# Only the explicitly reviewed fictional fixtures belong in Git.
 *.csv
 *.tsv
 *.xls
 *.xlsx
 *.parquet
 !/sample_data/sales_example.csv
+!/sample_data/expenses_example.csv
