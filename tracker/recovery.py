@@ -35,8 +35,10 @@ def consume_limits(specs):
         window = stamp // seconds
         key = f'{scope}:{window}:{digest(identity)}'
         expires = datetime.fromtimestamp((window + 1) * seconds, tz=dt_timezone.utc)
-        RecoveryLimit.objects.get_or_create(key=key, defaults={'expires_at': expires})
-        bucket = RecoveryLimit.objects.select_for_update().get(pk=key)
+        # Lock during lookup too: expiry cleanup must not delete an existing
+        # bucket between a separate lookup and lock acquisition.
+        bucket, _ = RecoveryLimit.objects.select_for_update().get_or_create(
+            key=key, defaults={'expires_at': expires})
         if bucket.count >= maximum:
             return False
         bucket.count += 1
