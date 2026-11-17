@@ -134,3 +134,11 @@ async-safety checks, then the browser tests passed.
   without it. Chromium is automated; other browsers have not been exhaustively tested.
 - SQLite remains for sequential development; concurrency guarantees depend on
   PostgreSQL READ COMMITTED and all imports using the existing service lock.
+
+## v0.3 reuse
+
+Expense upload reuses the same form, template, preview script, upload handler and
+bounded CSV parser. Field count now comes from the page's dataset configuration:
+five fields for sales, four for expenses. Separate ExpenseColumnMapping rows keep
+sales names/profiles unchanged; routes determine the dataset, never a posted
+organization or dataset parameter. See [expense intelligence](EXPENSE_INTELLIGENCE.md).

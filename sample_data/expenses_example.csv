@@ -1,0 +1,4 @@
+expense_id,date,category,amount
+E1,2026-11-01,Rent,600.00
+E2,2026-11-02,Software,100.00
+E3,2026-11-03,Utilities,50.00

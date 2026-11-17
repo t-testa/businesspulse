@@ -9,9 +9,10 @@ from django.views.decorators.http import require_http_methods
 
 from .forms import SignupForm, UploadForm
 from .kpis import KPI_DEFINITIONS
-from .models import ColumnMapping, Organization, Sale
+from .models import ColumnMapping, ExpenseColumnMapping, Organization, Sale
 from .services import (ALIASES, MAX_COLUMNS, MAX_CSV_BYTES, MAX_HEADER_LENGTH, CSVValidationError,
-                       parse_sales_upload, report_for, safe_csv_cell, save_sales_import)
+                       parse_sales_upload, report_for, safe_csv_cell, save_sales_import,
+                       EXPENSE_ALIASES, parse_expense_upload, save_expense_import)
 
 
 def signup(request):
@@ -37,6 +38,7 @@ def dashboard(request):
     report = report_for(organization, period=request.GET.get('period', 'all'))
     return render(request, 'tracker/dashboard.html', {
         'organization': organization, 'report': report,
+        'expense_imports': organization.expense_imports.select_related('uploaded_by')[:5],
         'imports': organization.imports.select_related('uploaded_by')[:5],
     })
 
@@ -44,9 +46,24 @@ def dashboard(request):
 @login_required
 @require_http_methods(['GET', 'POST'])
 def upload_sales(request):
+    return _upload(request, expense=False)
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def upload_expenses(request):
+    return _upload(request, expense=True)
+
+
+def _upload(request, *, expense):
+    aliases = EXPENSE_ALIASES if expense else ALIASES
+    parser = parse_expense_upload if expense else parse_sales_upload
+    importer = save_expense_import if expense else save_sales_import
+    mapping_model = ExpenseColumnMapping if expense else ColumnMapping
+    dataset = 'expenses' if expense else 'sales'
     organization = get_object_or_404(Organization, owner=request.user)
     form = UploadForm(request.POST if request.method == 'POST' else None, request.FILES or None,
-                      organization=organization)
+                      organization=organization, expense=expense)
     if getattr(request, 'csv_upload_error', None):
         form.is_valid()
         form.add_error(None, request.csv_upload_error)
@@ -57,29 +74,30 @@ def upload_sales(request):
             saved = form.cleaned_data['saved_mapping']
             if mapping is None and saved is not None:
                 mapping = saved.columns
-            rows, columns = parse_sales_upload(uploaded, mapping)
-            # Keep saved metadata and sales in the same transaction. The import
+            rows, columns = parser(uploaded, mapping)
+            # Keep saved metadata and imported records in the same transaction. The import
             # service's organization lock also serializes same-name mapping updates.
             with transaction.atomic():
-                batch = save_sales_import(organization=organization, user=request.user,
-                                          file_name=uploaded.name, rows=rows)
+                batch = importer(organization=organization, user=request.user,
+                                 file_name=uploaded.name, rows=rows)
                 if form.cleaned_data['mapping_name']:
-                    ColumnMapping.objects.update_or_create(
+                    mapping_model.objects.update_or_create(
                         organization=organization, name=form.cleaned_data['mapping_name'],
                         defaults={'columns': columns},
                     )
         except CSVValidationError as exc:
             form.add_error('file', str(exc))
         else:
-            messages.success(request, f'Import complete: {batch.inserted_count} new sales, '
+            messages.success(request, f'Import complete: {batch.inserted_count} new {dataset}, '
                                       f'{batch.duplicate_count} identical duplicates skipped.')
             return redirect('dashboard')
     return render(request, 'tracker/upload.html', {
-        'organization': organization, 'form': form,
-        'mapping_fields': [(key, key.replace('_', ' ').capitalize()) for key in ALIASES],
-        'preview_config': {'aliases': ALIASES, 'maxBytes': MAX_CSV_BYTES,
+        'organization': organization, 'form': form, 'dataset': dataset, 'expense': expense,
+        'upload_url': 'upload_expenses' if expense else 'upload_sales',
+        'mapping_fields': [(key, key.replace('_', ' ').capitalize()) for key in aliases],
+        'preview_config': {'aliases': aliases, 'maxBytes': MAX_CSV_BYTES,
                            'maxColumns': MAX_COLUMNS, 'maxHeaderLength': MAX_HEADER_LENGTH},
-        'saved_mappings': list(organization.column_mappings.values('id', 'columns')),
+        'saved_mappings': list(mapping_model.objects.filter(organization=organization).values('id', 'columns')),
     })
 
 

@@ -3,21 +3,12 @@
 {% block content %}
 <div class="page-header">
   <div>
-    <p class="eyebrow">SALES INTELLIGENCE · {{ organization.currency }}</p>
+    <p class="eyebrow">SALES + OPERATING EXPENSE INTELLIGENCE · {{ organization.currency }}</p>
     <h1>{{ organization.name }}</h1>
-    <p class="muted">Understand your completed sales, at transaction grain.</p>
+    <p class="muted">Sales and operating expenses, reported separately in the same period.</p>
   </div>
   <a class="button primary" href="{% url 'upload_sales' %}">+ Upload sales</a>
 </div>
-{% if not report.has_data %}
-<section class="panel empty-state">
-  <span class="empty-icon">▥</span>
-  <h2>Start with your first CSV</h2>
-  <p>Upload a sales transaction file to automatically calculate revenue, margin, orders and customer metrics.</p>
-  <a class="button primary" href="{% url 'upload_sales' %}">Upload sales data</a>
-  <p class="small muted">Try the included <code>sample_data/sales_example.csv</code> with fictional transactions.</p>
-</section>
-{% else %}
 <form class="filter-bar" method="get" action="{% url 'dashboard' %}">
   <label for="period">Reporting period</label>
   <select id="period" name="period" onchange="this.form.submit()">
@@ -28,6 +19,15 @@
   <button class="button secondary" type="submit">Apply</button>
   <span class="muted small">{{ report.transaction_count }} completed transactions in period</span>
 </form>
+{% if not report.has_data %}
+<section class="panel empty-state">
+  <span class="empty-icon">▥</span>
+  <h2>No sales transactions in this period</h2>
+  <p>Upload a sales transaction file to automatically calculate revenue, margin, orders and customer metrics.</p>
+  <a class="button primary" href="{% url 'upload_sales' %}">Upload sales data</a>
+  <p class="small muted">Try the included <code>sample_data/sales_example.csv</code> with fictional transactions.</p>
+</section>
+{% endif %}
 <div class="kpi-grid">
   {% for card in report.cards %}
   <article class="kpi-card">
@@ -55,5 +55,5 @@
     {% empty %}<tr><td colspan="4">No imports yet.</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
-{% endif %}
+{% include 'tracker/expense_report.html' %}
 {% endblock %}

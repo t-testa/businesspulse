@@ -1,6 +1,6 @@
 # BusinessPulse
 
-**Upload a sales CSV. Automatically see business KPIs.**
+**Upload sales and operating expense CSVs. See revenue, gross profit, costs and estimated operating results.**
 
 A Django 5.2 application in the public [t-testa/businesspulse repository](https://github.com/t-testa/businesspulse). This is a **synthetic-data beta**, not a certified data platform for real customer information. The owner has verified Render deployment, account separation, persistence after redeployment, and a local restore of the hosted PostgreSQL database. New releases still require review and deployment approval.
 
@@ -10,13 +10,14 @@ A Django 5.2 application in the public [t-testa/businesspulse repository](https:
 - One private business workspace per account, with CAD or USD currency chosen during signup.
 - UTF-8 sales CSV ingestion with column aliases, validation, atomic imports and duplicate protection.
 - Browser-local preview of the first 10 CSV rows, editable column mappings, and reusable workspace-scoped mappings.
+- Separate operating expenses, category breakdown, monthly expense trend, and estimated operating result/margin.
 - Revenue, gross profit, gross margin, transaction count, average transaction value, purchasing customers.
 - Reporting period filters, simple monthly revenue chart, recent import history.
 - KPI show/hide preferences and transaction CSV export (with formula-injection protection).
 - SQLite development, PostgreSQL production configuration, WhiteNoise, Gunicorn, GitHub Actions tests, Render deployment instructions.
-- Sample **fictional** sales CSV and initial Django tests.
+- Reviewed **fictional** sales/expense CSV fixtures and automated regression tests.
 
-**Limits:** Only completed sales transactions in one currency; exactly one transaction per row. This is **not** a generic arbitrary-data upload engine yet. No Excel, date-format conversion, chart builder, payment processing, refunds, tax, account recovery, rate limiting or email verification. See [product specification](docs/PRODUCT.md).
+**Limits:** Completed sales and operating expense transactions in one currency; exactly one transaction per row. This is **not** a generic arbitrary-data upload engine yet. No Excel, date-format conversion, chart builder, payment processing, refunds, tax, account recovery, rate limiting or email verification. See [product specification](docs/PRODUCT.md).
 
 ## Quick start — Windows PowerShell
 
@@ -154,3 +155,34 @@ Select **All time** to verify the entire sample. Some dates will fall outside a 
 ## Launch gate
 
 Code in a repository is **not** a live public application. Deploy only after the project runs and passes tests locally. A private Render sandbox using synthetic data can be published for a few testers after a basic security review. Before using real client data, address account verification/recovery, privacy and retention, abuse prevention, backups and restore, tenant-isolation review, monitoring and operational responsibility.
+
+## v0.3 operating expenses
+
+Use **Expense upload** for `expense_id,date,category,amount`; preview the first
+10 rows, review four mapping dropdowns, and optionally save a mapping. Expense
+profiles are private to the workspace and separate from sales profiles. The
+server validates the entire file before an atomic import. Repeated identical
+expense IDs are skipped; conflicting IDs reject the whole import. Raw CSV files
+are not retained by Django.
+
+**Exclude direct costs already included in sales COGS.** Use one unique ID per
+operating expense, nonnegative amounts in the workspace currency, and YYYY-MM-DD
+dates. Consistent category spelling matters. No refunds, taxes, accrual adjustments,
+depreciation, currency conversion or accounting certification are included.
+
+The dashboard applies one reporting period to both datasets. No expense imports
+means **Not imported**, with operating result/margin unavailable. Once expenses
+have been imported, an empty period shows a qualified zero, not a claim of complete
+books. Estimated operating margin is N/A when revenue is zero. Expense cards are
+always shown separately; existing sales-card preferences remain unchanged.
+
+Synthetic acceptance example: with revenue CAD 3,700 and COGS CAD 2,200, upload
+`sample_data/expenses_example.csv` (Rent 600, Software 100, Utilities 50).
+Select **All time**: total expenses = CAD 750, estimated operating result =
+CAD 750, estimated operating margin = 20.3%. This expense fixture is separate from
+`sales_example.csv`, whose revenue remains CAD 21,065; do not expect the CAD 750
+operating result when combining it with that different sales fixture.
+
+Apply additive migration `0003_expense_intelligence` only to an approved target.
+For development verification, use an isolated synthetic database, never a restored
+hosted database. See [expense architecture, tests and rollback](docs/EXPENSE_INTELLIGENCE.md).

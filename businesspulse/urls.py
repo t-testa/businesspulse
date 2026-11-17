@@ -12,6 +12,7 @@ urlpatterns = [
     path('signup/', views.signup, name='signup'),
     path('', views.dashboard, name='dashboard'),
     path('upload/', views.upload_sales, name='upload_sales'),
+    path('expenses/upload/', views.upload_expenses, name='upload_expenses'),
     path('preferences/', views.preferences, name='preferences'),
     path('export/', views.export_sales, name='export_sales'),
 ]

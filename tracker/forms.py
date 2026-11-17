@@ -4,7 +4,7 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
-from .models import ColumnMapping, Organization
+from .models import ColumnMapping, ExpenseColumnMapping, Organization
 from .services import MAX_CSV_BYTES
 
 
@@ -31,9 +31,12 @@ class UploadForm(forms.Form):
                                           empty_label='Suggest from column names', label='Saved mapping')
     mapping_name = forms.CharField(required=False, max_length=100, label='Save mapping as (optional)')
 
-    def __init__(self, *args, organization, **kwargs):
+    def __init__(self, *args, organization, expense=False, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['saved_mapping'].queryset = organization.column_mappings.all()
+        model = ExpenseColumnMapping if expense else ColumnMapping
+        self.fields['saved_mapping'].queryset = model.objects.filter(organization=organization)
+        if expense:
+            self.fields['file'].label = 'Operating expense data (CSV)'
         self.fields['file'].widget.attrs['accept'] = '.csv,text/csv'
 
     def clean_mapping(self):
@@ -45,7 +48,7 @@ class UploadForm(forms.Form):
         except (ValueError, RecursionError) as exc:
             raise forms.ValidationError('Invalid column mapping. Choose the file and review the mapping again.') from exc
         if not isinstance(mapping, dict):
-            raise forms.ValidationError('Column mapping must be an object containing the five required fields.')
+            raise forms.ValidationError('Column mapping must be an object containing the required fields.')
         return mapping
 
     def clean_file(self):

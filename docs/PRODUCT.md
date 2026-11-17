@@ -1,4 +1,4 @@
-# BusinessPulse — product definition, v0.2
+# BusinessPulse — product definition, v0.3
 
 ## Who is it for?
 
@@ -59,7 +59,46 @@ Excel/XLSX, date/number-format conversion, mapping deletion/renaming management,
 
 ## Next releases
 
-- **v0.2 (this release):** CSV-only local preview, mapping dropdowns, and saved workspace mappings. Excel support is deferred.
-- **v0.3:** add expenses and invoice/receivables templates, industry KPI packs, richer date filters, import reconciliation.
+- **v0.2 (shipped):** CSV-only local preview, mapping dropdowns, and saved workspace mappings. Excel support is deferred.
+- **v0.3 (this release):** operating expenses and predefined operating estimates; invoice/receivables templates, industry packs and reconciliation remain deferred.
 - **v0.4:** custom KPI builder with a constrained safe expression language (no arbitrary Python/SQL), roles, alerting, secure sharing.
 - **v1.0:** compliance/privacy workflows, billing, audited multi-tenant isolation, backups/restore drills, real customer onboarding.
+
+## Operating expense intelligence (v0.3)
+
+An expense is one unique operating expense transaction per `expense_id` per
+organization, with `date`, `category` (required, trimmed, max 100 characters),
+and `amount` (nonnegative, max two decimal places, below 1 trillion). All values
+use the organization's configured CAD/USD currency. Expense IDs are independent
+of sales IDs. Category names remain case-sensitive; users must classify consistently.
+
+Operating expenses must exclude direct costs already represented in sales COGS.
+Cross-dataset accounting overlap cannot be inferred from CSV IDs or amounts;
+source classification and completeness remain the owner's responsibility. No
+refunds, taxes, accrual adjustments, depreciation, multi-currency conversion,
+arbitrary formulas or accounting certification are supported.
+
+- Total operating expenses = SUM(expense.amount).
+- Operating expenses by category = SUM(amount) grouped by the supplied category.
+- Estimated operating result = sales gross profit minus operating expenses.
+- Estimated operating margin = operating result / sales revenue * 100; N/A at zero revenue.
+- Monthly expense trend = SUM(amount) by expense month, last 12 populated months
+  within the selected period. Missing months are not treated as confirmed zeros.
+
+All time, last 30 days, last 90 days, and YTD apply to sale date and expense date
+using the same inclusive boundaries. Relative periods end today; all time retains
+existing behavior including future-dated rows. No successful expense import means
+expenses are **Not imported** and both combined estimates are N/A. A zero-amount
+expense is valid data. After an expense import, an empty reporting period shows
+zero with an explicit incomplete-data qualification. Import existence cannot
+prove that every expense in a period has been provided.
+
+Acceptance: revenue 3,700 minus COGS 2,200 gives gross profit 1,500. Rent 600 +
+Software 100 + Utilities 50 = operating expenses 750. Result 1,500 - 750 = 750;
+750 / 3,700 * 100 = 20.27027...%, displayed as 20.3%.
+
+Expense CSVs use the same bounded in-browser preview and server validation as
+sales, with four mapping fields. Expense mapping names and import history are
+scoped to the organization and stored separately. Identical reuploads do not add
+transactions; any conflicting ID fails the entire import, including mapping and
+history writes. Concurrent imports require PostgreSQL's organization-row lock.

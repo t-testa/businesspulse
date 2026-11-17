@@ -147,3 +147,23 @@ Official references: [Render Django](https://render.com/docs/deploy-django),
 [Render PostgreSQL connections](https://render.com/docs/postgresql-creating-connecting),
 [Render Python versions](https://render.com/docs/python-version), and
 [Django deployment checklist](https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/).
+
+## v0.3 expense migration and acceptance
+
+This release adds migration `0003_expense_intelligence`: three new tables only
+(Expense, ExpenseImport, ExpenseColumnMapping), constraints and date index. It
+contains no sales data rewrite, backfill, or changes to old mappings/preferences.
+After review and deployment approval, the existing build command applies it.
+No deployment is authorized by this document.
+
+A code rollback to v0.2 can leave the new tables in place and retain expense data.
+Do not reverse migration 0003 after accepting expense data: reversal drops all
+expense records/history/profiles. Migration reversal is tested only with disposable
+synthetic data. Never reverse the original sales migrations as a feature rollback.
+
+After an approved staging release, check the synthetic CAD 750/750/20.3% scenario,
+missing-data labels, period filters, saved expense mappings, two-account isolation,
+reupload no-op/conflict rollback, and persistence after redeployment. Do not use a
+restored hosted database for automated tests or migration experiments. Existing
+HTTPS/secrets/backup/logging requirements remain in force. Expense data is subject
+to the same privacy, retention and access controls as sales.
